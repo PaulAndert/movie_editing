@@ -51,7 +51,7 @@ case "$MODE" in
         echo "Tempo: 	$ATEMPO"
 
         ffmpeg -i "$ARG_1" -acodec copy -vn audio.aac
-        if [ $ATEMPO -eq 1.0 ]; then
+        if [ "$ATEMPO" = "1.000000" ]; then
             echo "No FPS adjustment necessary."
             ffmpeg -i "$ARG_2" -i "audio.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
         else
