@@ -2,28 +2,74 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CSV_FILE="$SCRIPT_DIR/iso639-2.csv"
+
 MODE="$1"
 ARG_1="$2"
 ARG_2="${3:-0}"
 
 usage() {
     echo "Usage:"
-    echo "  $0 -d <seconds>             # Delay out.mp4 by x seconds"
-    echo "  $0 -t <input_1> <input_2>   # adjusts input audio for fps difference"
-    echo "                              # input_1 is the file with the correct audio"
+    echo "  em -d <seconds>             # Delay out.mp4 by x seconds"
+    echo "  em -t <input_1> <input_2>   # adjusts input audio for fps difference"
+    echo "  em -f <input_1> <input_2>   # create final mkv with multiple audio streams"
+    echo "  em -i <input_1>             # print infos to file"
+    echo ""
+    echo "                              # input_1 is the file with the correkt audio"
     echo "                              # input_2 is the file with the correct video"
+    echo ""
+    echo "Example usage:"
+    echo "download a version of a movie in german with low resolution and one in english with a better one"
+    echo "then rename the files correctly like for example 'name (year) resolution.lan.ext'"
+    echo "then use em -t ger eng to adjust possible fps differences"
+    echo "then use em -d s to adjust possible movie starttimes in the new combined version"
+    echo "then use em -f new_ger eng to create the final file"
     exit 1
 }
 
-get_fps() {
+get_fps_from_name() {
     local file="$1"
     ffprobe -v error -select_streams v:0 \
         -show_entries stream=r_frame_rate \
         -of default=noprint_wrappers=1:nokey=1 "$file"
 }
 
-float_fps() {
+get_float_from_fps() {
     echo "$1" | awk -F'/' '{ if (NF==2) printf "%.6f", $1/$2; else printf "%.6f", $1 }'
+}
+
+get_code_from_name() {
+    local file="$1"
+
+    # is file name correct
+    PARTS_COUNT=$(awk -F'.' '{print NF}' <<< "$file")
+    if [[ $PARTS_COUNT -ne 3 ]]; then
+        echo "Error: filename '$file' is in the wrong format."
+        exit 1
+    fi
+
+    # split filename
+    IFS='.' read -r BASE CODE EXT <<< "$file"
+
+    # is code 3 chars
+    if [[ ${CODE} != ??? ]]; then
+        echo "Error: ISO-code '$CODE' is not 3 chars long."
+        exit 1
+    fi
+    echo "$CODE"
+}
+
+get_value_from_code() {
+    local code="$1"
+
+    # try loading the value for this code
+    VALUE=$(awk -F',' -v code="$code" '$1==code {print $2}' "$CSV_FILE")
+    if [[ -z "$VALUE" ]]; then
+        echo "Error: code '$code' can't be found."
+        exit 1
+    fi
+    echo "$VALUE"
 }
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
@@ -33,35 +79,109 @@ fi
 
 case "$MODE" in
     -d)
-        echo "Set delay of $ARG seconds."
         if [ ! -f out.mp4 ]; then
             echo "Erro: out.mp4 was not found!"
             exit 1
         fi
+        echo "Set delay of $ARG seconds:"
         ffmpeg -y -i out.mp4 -itsoffset "$ARG_1" -i out.mp4 -map 0:v -map 1:a -c copy delayed.mp4
         ;;
 
     -t)
-        FPS_1=$(get_fps "$ARG_1")
-        FPS_2=$(get_fps "$ARG_2")
-        ATEMPO=$(awk -v f1="$(float_fps $FPS_2)" -v f2="$(float_fps $FPS_1)" 'BEGIN { printf "%.6f", f1/f2 }')
+        FPS_1=$(get_fps_from_name "$ARG_1")
+        FPS_2=$(get_fps_from_name "$ARG_2")
+        ATEMPO=$(awk -v f1="$(get_float_from_fps $FPS_2)" -v f2="$(get_float_from_fps $FPS_1)" 'BEGIN { printf "%.6f", f1/f2 }')
 
         echo "1: 	    $FPS_1"
         echo "2: 	    $FPS_2"
         echo "Tempo: 	$ATEMPO"
 
-        ffmpeg -i "$ARG_1" -acodec copy -vn audio.aac
+        read -p "Continiue? [Y/n] " input
+        if [[ "$input" == "n" || "$input" == "N" ]]; then
+            echo "exiting."
+            exit 1
+        fi
+
+        echo "extracting audio:"
+        ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
         if [ "$ATEMPO" = "1.000000" ]; then
-            echo "No FPS adjustment necessary."
-            ffmpeg -i "$ARG_2" -i "audio.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
+            echo "rebuild new file:"
+            ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
         else
-            echo "FPS adjustment of $ATEMPO is necessary."
-            ffmpeg -i audio.aac -filter:a "atempo=$ATEMPO" -c:a aac -b:a 192k audio_fixed.aac
-            ffmpeg -i "$ARG_2" -i "audio_fixed.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
+            echo "adjust audio to fit video from input 2:"
+            ffmpeg -hide_banner -loglevel error -stats -i audio.aac -filter:a "atempo=$ATEMPO" -c:a aac -b:a 192k audio_fixed.aac
+            echo "rebuild new file:"
+            ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio_fixed.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
         fi
 	    ;;
+    -f)
+        echo "start creating final file:"
 
+        CODE_1=$(get_code_from_name "$ARG_1")
+        VALUE_1=$(get_value_from_code "$CODE_1")
+        CODE_2=$(get_code_from_name "$ARG_2")
+        VALUE_2=$(get_value_from_code "$CODE_2")
+
+        VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        AUDIO_START=$(ffprobe -v error -select_streams a:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        DIFFERENCE=$(echo "$AUDIO_START - $VIDEO_START" | bc)
+        MILI_SEC=$(awk "BEGIN {printf \"%d\", $DIFFERENCE*1000}")
+
+        echo "INFO:"
+        echo "$CODE_1   $VALUE_1"
+        echo "$CODE_2   $VALUE_2"
+        echo ""
+        echo "Video: 	$VIDEO_START"
+        echo "Audio: 	$AUDIO_START"
+        echo "Diff:     $DIFFERENCE -> $MILI_SEC"
+        echo ""
+
+        read -p "Continue? [Y/n] " input
+        if [[ "$input" == "n" || "$input" == "N" ]]; then
+            echo "exiting."
+            exit 1
+        fi
+
+        OUTFILE="${ARG_2%.*.*}.$CODE_1.$CODE_2.mkv"
+        ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
+            -filter_complex "[1:a:0]adelay=$MILI_SEC|$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
+            -map 0:v \
+            -map "[aud_de]" \
+            -map 0:a? \
+            -map 0:s? \
+            -c:v copy \
+            -c:a:0 aac \
+            -c:s copy \
+            -disposition:a:0 default \
+            -disposition:a 0 \
+            -metadata:s:a:0 language="$CODE_1" \
+            -metadata:s:a:0 title="$VALUE_1" \
+            -metadata:s:a:1 language="$CODE_2" \
+            -metadata:s:a:1 title="$VALUE_2" \
+            "$OUTFILE"
+
+        ;;
+
+    -i)
+        echo "print file infos:"
+        VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        AUDIO_START=$(ffprobe -v error -select_streams a:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        DIFFERENCE=$(echo "$AUDIO_START - $VIDEO_START" | bc)
+
+        echo "Video: 	$VIDEO_START"
+        echo "Audio: 	$AUDIO_START"
+        echo "Diff: 	$DIFFERENCE"
+
+        ;;
     *)
         usage
         ;;
 esac
+
+
+
+
+# Workflow
+# 1. em -t ger.mp4 foreign.mp4
+# 2. adjust out.mp4 with em -d for audio to be in sync
+# 3. em -f out.mp4 foreign.mp4 to create a file with both audio streams
