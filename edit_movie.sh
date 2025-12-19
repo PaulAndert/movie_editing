@@ -42,20 +42,18 @@ get_float_from_fps() {
 get_code_from_name() {
     local file="$1"
 
-    # is file name correct
-    PARTS_COUNT=$(awk -F'.' '{print NF}' <<< "$file")
-    if [[ $PARTS_COUNT -ne 3 ]]; then
+    if [[ "$file" =~ ^(.+)\.([a-z]{3})\.([^.]+)$ ]]; then
+        BASE="${BASH_REMATCH[1]}"
+        CODE="${BASH_REMATCH[2]}"
+        EXT="${BASH_REMATCH[3]}"
+    else
         echo "Error: filename '$file' is in the wrong format."
         exit 1
     fi
-
-    # split filename
-    IFS='.' read -r BASE CODE EXT <<< "$file"
-
+    
     # is code 3 chars
     if [[ ${CODE} != ??? ]]; then
         echo "Error: ISO-code '$CODE' is not 3 chars long."
-        exit 1
     fi
     echo "$CODE"
 }
@@ -67,7 +65,6 @@ get_value_from_code() {
     VALUE=$(awk -F',' -v code="$code" '$1==code {print $2}' "$CSV_FILE")
     if [[ -z "$VALUE" ]]; then
         echo "Error: code '$code' can't be found."
-        exit 1
     fi
     echo "$VALUE"
 }
@@ -118,18 +115,43 @@ case "$MODE" in
         echo "start creating final file:"
 
         CODE_1=$(get_code_from_name "$ARG_1")
+        if [[ "$CODE_1" == *'Error'* ]]; then
+            echo "$CODE_1"
+            exit 1
+        fi
         VALUE_1=$(get_value_from_code "$CODE_1")
+        if [[ "$VALUE_1" == *'Error'* ]]; then
+            echo "$VALUE_1"
+            exit 1
+        fi
+
+        SKIP_LANG_2=false
         CODE_2=$(get_code_from_name "$ARG_2")
-        VALUE_2=$(get_value_from_code "$CODE_2")
+        if [[ "$CODE_2" == *'Error'* ]]; then
+            echo "$CODE_2"
+            SKIP_LANG_2=true
+        else
+            VALUE_2=$(get_value_from_code "$CODE_2")
+            if [[ "$VALUE_2" == *'Error'* ]]; then
+                echo "$VALUE_2"
+                SKIP_LANG_2=true
+            fi
+        fi
 
         VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
         AUDIO_START=$(ffprobe -v error -select_streams a:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
         DIFFERENCE=$(echo "$AUDIO_START - $VIDEO_START" | bc)
-        MILI_SEC=$(awk "BEGIN {printf \"%d\", $DIFFERENCE*1000}")
+        
+        # TODO entscheiden ob video eine rolle spielt, falls ja dann muss lösung egfunden werden für negative audio verschiebung
+        MILI_SEC=$(awk "BEGIN {printf \"%d\", $AUDIO_START*1000}")
 
         echo "INFO:"
         echo "$CODE_1   $VALUE_1"
-        echo "$CODE_2   $VALUE_2"
+        if $SKIP_LANG_2; then
+            echo "skipped Language 2"
+        else
+            echo "$CODE_2   $VALUE_2"
+        fi
         echo ""
         echo "Video: 	$VIDEO_START"
         echo "Audio: 	$AUDIO_START"
@@ -141,27 +163,47 @@ case "$MODE" in
             echo "exiting."
             exit 1
         fi
+        
+        if $SKIP_LANG_2; then
+            OUTFILE="${ARG_2%.*.*}.$CODE_1.TODO.mkv"
+            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
+                -movflags +faststart \
+                -filter_complex "[1:a:0]adelay=$MILI_SEC|$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
+                -map 0:v \
+                -map "[aud_de]" \
+                -map 0:a? \
+                -map 0:s:m:codec:subrip? \
+                -c:v copy \
+                -c:a:0 aac -b:a:0 192k \
+                -c:s srt \
+                -disposition:a:0 default \
+                -disposition:a 0 \
+                -metadata:s:a:0 language="$CODE_1" \
+                -metadata:s:a:0 title="$VALUE_1" \
+                "$OUTFILE"
 
-        OUTFILE="${ARG_2%.*.*}.$CODE_1.$CODE_2.mkv"
-        ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
-            -filter_complex "[1:a:0]adelay=$MILI_SEC|$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
-            -map 0:v \
-            -map "[aud_de]" \
-            -map 0:a? \
-            -map 0:s? \
-            -c:v copy \
-            -c:a:0 aac \
-            -c:s copy \
-            -disposition:a:0 default \
-            -disposition:a 0 \
-            -metadata:s:a:0 language="$CODE_1" \
-            -metadata:s:a:0 title="$VALUE_1" \
-            -metadata:s:a:1 language="$CODE_2" \
-            -metadata:s:a:1 title="$VALUE_2" \
-            "$OUTFILE"
+        else
+            OUTFILE="${ARG_2%.*.*}.$CODE_1.$CODE_2.mkv"
+            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
+                -movflags +faststart \
+                -filter_complex "[1:a:0]adelay=$MILI_SEC|$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
+                -map 0:v \
+                -map "[aud_de]" \
+                -map 0:a? \
+                -map 0:s:m:codec:subrip? \
+                -c:v copy \
+                -c:a:0 aac -b:a:0 192k \
+                -c:s srt \
+                -disposition:a:0 default \
+                -disposition:a 0 \
+                -metadata:s:a:0 language="$CODE_1" \
+                -metadata:s:a:0 title="$VALUE_1" \
+                -metadata:s:a:1 language="$CODE_2" \
+                -metadata:s:a:1 title="$VALUE_2" \
+                "$OUTFILE"
+        fi
 
         ;;
-
     -i)
         echo "print file infos:"
         VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
@@ -177,11 +219,3 @@ case "$MODE" in
         usage
         ;;
 esac
-
-
-
-
-# Workflow
-# 1. em -t ger.mp4 foreign.mp4
-# 2. adjust out.mp4 with em -d for audio to be in sync
-# 3. em -f out.mp4 foreign.mp4 to create a file with both audio streams
