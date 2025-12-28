@@ -50,7 +50,7 @@ get_code_from_name() {
         echo "Error: filename '$file' is in the wrong format."
         exit 1
     fi
-    
+
     # is code 3 chars
     if [[ ${CODE} != ??? ]]; then
         echo "Error: ISO-code '$CODE' is not 3 chars long."
@@ -168,7 +168,7 @@ case "$MODE" in
             OUTFILE="${ARG_2%.*.*}.$CODE_1.TODO.mkv"
             ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
                 -movflags +faststart \
-                -filter_complex "[1:a:0]adelay=$MILI_SEC|$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
+                -filter_complex "[1:a:0]adelay=$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
                 -map 0:v \
                 -map "[aud_de]" \
                 -map 0:a? \
@@ -186,7 +186,7 @@ case "$MODE" in
             OUTFILE="${ARG_2%.*.*}.$CODE_1.$CODE_2.mkv"
             ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
                 -movflags +faststart \
-                -filter_complex "[1:a:0]adelay=$MILI_SEC|$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
+                -filter_complex "[1:a:0]adelay=$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
                 -map 0:v \
                 -map "[aud_de]" \
                 -map 0:a? \
