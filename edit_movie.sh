@@ -99,12 +99,32 @@ case "$MODE" in
             exit 1
         fi
 
-        echo "extracting audio:"
-        ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
+        # echo "extracting audio:"
+        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
+        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -vn -acodec pcm_s16le audio.wav
+        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -vn -ac 2 -ar 48000 -f wav -y audio.wav
+        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -vn -ac 2 -ar 48000 -acodec pcm_s16le audio.wav
+        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -ac 2 -ar 48000 -c:a aac -b:a 192k fixed_audio.m4a
+        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -ac 2 -ar 48000 -c:a ac3 -b:a 192k audio.ac3
+
         if [ "$ATEMPO" = "1.000000" ]; then
+            echo "extracting audio:"
+            ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -ac 2 -ar 48000 -c:a aac -b:a 192k audio.m4a
             echo "rebuild new file:"
             ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -metadata:s:a:0 language=ger out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ac 2 -metadata:s:a:0 language=ger -shortest out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" -map 1:v -map 0:a -c:v copy -c:a aac -b:a 192k -metadata:s:a:0 language=ger out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i fixed_audio.m4a -map 0:v -map 1:a -c:v copy -c:a copy -metadata:s:a:0 language=ger out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ac 2 -af "aresample=resampler=soxr" -metadata:s:a:0 language=ger out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i audio.ac3 -map 0:v -map 1:a -c:v copy -c:a copy -metadata:s:a:0 language=ger out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ac 2 -metadata:s:a:0 language=ger out.mkv
+            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i audio.m4a -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
         else
+            echo "extracting audio:"
+            ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
             echo "adjust audio to fit video from input 2:"
             ffmpeg -hide_banner -loglevel error -stats -i audio.aac -filter:a "atempo=$ATEMPO" -c:a aac -b:a 192k audio_fixed.aac
             echo "rebuild new file:"
@@ -146,56 +166,71 @@ case "$MODE" in
         MILI_SEC=$(awk "BEGIN {printf \"%d\", $AUDIO_START*1000}")
 
         echo "INFO:"
-        echo "$CODE_1   $VALUE_1"
+        echo "File 1:           $CODE_1   $VALUE_1"
         if $SKIP_LANG_2; then
-            echo "skipped Language 2"
+            echo "Warning: skipped Language 2 ($CODE_2)"
         else
-            echo "$CODE_2   $VALUE_2"
+            echo "File 2:           $CODE_2   $VALUE_2"
         fi
+        
+        LAYOUT=$(ffprobe -v error -select_streams a:0 -show_entries stream=channel_layout -of default=nw=1:nk=1 "$ARG_1")
+        CHANNEL=$(ffprobe -v error -select_streams a:0 -show_entries stream=channels -of csv=p=0 "$ARG_1")
+        if [[ "$LAYOUT" == "unknown" ]]; then
+            case $CHANNEL in
+                1) LAYOUT=mono ;;
+                2) LAYOUT=stereo ;;
+                6) LAYOUT=5.1 ;;
+                8) LAYOUT=7.1 ;;
+                *) LAYOUT=stereo ;; # fallback
+            esac
+        fi
+
         echo ""
-        echo "Video: 	$VIDEO_START"
-        echo "Audio: 	$AUDIO_START"
-        echo "Diff:     $DIFFERENCE -> $MILI_SEC"
+        echo "Layout File 1:    $CHANNEL -> $LAYOUT"
+        echo "Diff File 2:      $DIFFERENCE -> $MILI_SEC"
         echo ""
+
+        # ,asetpts=PTS-STARTPTS
+        # FILTER_COMPLEX="[0:a:0]aformat=sample_fmts=fltp:channel_layouts=$LAYOUT,adelay=${MILI_SEC}[aud_de]"
+        FILTER_COMPLEX="[0:a:0]aformat=sample_fmts=fltp,aresample=async=1:first_pts=0,adelay=${MILI_SEC}|${MILI_SEC}[aud_de]"
 
         read -p "Continue? [Y/n] " input
         if [[ "$input" == "n" || "$input" == "N" ]]; then
             echo "exiting."
             exit 1
         fi
+
         
         if $SKIP_LANG_2; then
             OUTFILE="${ARG_2%.*.*}.$CODE_1.TODO.mkv"
-            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
+            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" \
                 -movflags +faststart \
-                -filter_complex "[1:a:0]adelay=$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
-                -map 0:v \
+                -filter_complex "$FILTER_COMPLEX" \
+                -map 1:v \
                 -map "[aud_de]" \
-                -map 0:a? \
-                -map 0:s:m:codec:subrip? \
+                -map 1:a? \
+                -map 1:s:m:codec:subrip? \
                 -c:v copy \
                 -c:a:0 aac -b:a:0 192k \
                 -c:s srt \
                 -disposition:a:0 default \
-                -disposition:a 0 \
                 -metadata:s:a:0 language="$CODE_1" \
                 -metadata:s:a:0 title="$VALUE_1" \
                 "$OUTFILE"
 
         else
             OUTFILE="${ARG_2%.*.*}.$CODE_1.$CODE_2.mkv"
-            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" \
+            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" \
                 -movflags +faststart \
-                -filter_complex "[1:a:0]adelay=$MILI_SEC,asetpts=PTS-STARTPTS[aud_de]" \
-                -map 0:v \
+                -filter_complex "$FILTER_COMPLEX" \
+                -map 1:v \
                 -map "[aud_de]" \
-                -map 0:a? \
-                -map 0:s:m:codec:subrip? \
+                -map 1:a? \
+                -map 1:s:m:codec:subrip? \
                 -c:v copy \
                 -c:a:0 aac -b:a:0 192k \
                 -c:s srt \
                 -disposition:a:0 default \
-                -disposition:a 0 \
                 -metadata:s:a:0 language="$CODE_1" \
                 -metadata:s:a:0 title="$VALUE_1" \
                 -metadata:s:a:1 language="$CODE_2" \
@@ -205,14 +240,52 @@ case "$MODE" in
 
         ;;
     -i)
-        echo "print file infos:"
-        VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
-        AUDIO_START=$(ffprobe -v error -select_streams a:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
-        DIFFERENCE=$(echo "$AUDIO_START - $VIDEO_START" | bc)
+        echo "### File Infos ###"
+        echo "Video:"
 
-        echo "Video: 	$VIDEO_START"
-        echo "Audio: 	$AUDIO_START"
-        echo "Diff: 	$DIFFERENCE"
+        RESOLUTION=$(ffprobe -v 0 -hide_banner -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$ARG_1")
+        echo "  Resolution:           $RESOLUTION"
+
+        FPS=$(get_fps_from_name "$ARG_1")
+        echo "  Framerate:            $FPS"
+
+        VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        echo "  Video start:          $VIDEO_START"
+
+        echo ""
+        echo "Audio:"
+
+        INDEX=0
+        while IFS= read -r line; do
+            echo "  Audio Track:          $INDEX"
+            LAYOUT=$(ffprobe -v error -select_streams a:$INDEX -show_entries stream=channel_layout -of default=nw=1:nk=1 "$ARG_1")
+            CHANNEL=$(ffprobe -v error -select_streams a:$INDEX -show_entries stream=channels -of csv=p=0 "$ARG_1")
+            if [[ "$LAYOUT" == "unknown" ]]; then
+                case $CHANNEL in
+                    1) LAYOUT=mono ;;
+                    2) LAYOUT=stereo ;;
+                    6) LAYOUT=5.1 ;;
+                    8) LAYOUT=7.1 ;;
+                    *) LAYOUT=stereo ;; # fallback
+                esac
+            fi
+
+            echo "  Layout:               $CHANNEL -> $LAYOUT"
+
+            AUDIO_START=$(ffprobe -v error -select_streams a:$INDEX -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+            echo "  Audio start:          $AUDIO_START"
+
+            LANGUAGE=$(ffprobe -v error -select_streams a:$INDEX -show_entries stream_tags=language -of default=nw=1:nk=1 "$ARG_1")
+            TITLE=$(ffprobe -v error -select_streams a:$INDEX -show_entries stream_tags=title -of default=nw=1:nk=1 "$ARG_1")
+            echo "  Language:             $LANGUAGE"
+            echo "  Title:                $TITLE"
+
+            VALUE=$(get_value_from_code "$LANGUAGE")
+            echo "  Language Match:       $VALUE"
+
+            ((INDEX=INDEX+1))
+            echo ""
+        done < <(ffprobe -v error -select_streams a -show_entries stream=codec_name,channels -of csv=p=0 "$ARG_1")
 
         ;;
     *)
