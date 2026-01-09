@@ -1,12 +1,46 @@
-# movie_editing
+# Movie Editing Scripts
+Collection of Bash scripts for automating video/audio editing tasks using FFmpeg.  
 
-This is a collection of scripts used for editing movies.  
+## Requirements
+- FFmpeg (https://ffmpeg.org/)
+- Bash
 
-## edit_movie.sh
-With the edit_movie.sh script one can take the audio stream of one movie file and combine it with the video stream of another movie file. This includes a automatic detection and adjustment of FPS differences and the option to shift the audio for- or backwards.
+## Scripts
+### edit_movie.sh
+Combine the audio stream from one video file with the video stream from another, handling:
 
-## fps.sh
-With the fps.sh script one can print the fps of all video files in a given folder.
+- Automatic FPS adjustment between videos
+- Optional audio delay (forward/backward)
+- Merging multiple audio streams into one final video
+- Print info about video/audio files
 
-## resolution.sh
-With the resolution.sh script one can print the resolution of all video files in a given folder.
+**Usage examples:**
+```bash
+# Adjust FPS differences between German and English versions
+./edit_movie.sh -t mov.ger.mp4 mov.eng.mp4
+
+# Delay audio by 2 seconds
+./edit_movie.sh -d 2
+
+# Create final MKV with multiple audio streams
+./edit_movie.sh -f mov_fixed.ger.mp4 mov.eng.mp4
+
+# Print info of a video/audio file
+./edit_movie.sh -i mov.mp4
+```
+
+**Scenario:**  
+Use these scripts to merge different movie versions (e.g., low-res German + high-res English), adjust FPS, synchronize audio/video, and produce a final MKV with multiple audio streams.
+
+### fps.sh
+Print the FPS of all video files in a folder:
+```bash
+./fps.sh /path/to/videos
+```
+  
+### resolution.sh
+Print the resolution of all video files in a folder:
+```bash
+./resolution.sh /path/to/videos
+```
+
