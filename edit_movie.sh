@@ -93,13 +93,13 @@ case "$MODE" in
         echo "2: 	    $FPS_2"
         echo "Tempo: 	$ATEMPO"
 
-        read -p "Continiue? [Y/N/S] " input
+        read -p "Continiue or Skip FPS adjustment? [Y/N/Skip] " input
         if [[ "$input" == "n" || "$input" == "N" ]]; then
             echo "exiting."
             exit 1
         fi
 
-        if [ "$ATEMPO" = "1.000000" || "$input" == "s" || "$input" == "S" || "$input" == "skip" ]; then
+        if [[ "$ATEMPO" = "1.000000" || "$input" == "s" || "$input" == "S" || "$input" == "skip" ]]; then
             echo "extracting audio:"
             ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
             echo "rebuild new file:"
