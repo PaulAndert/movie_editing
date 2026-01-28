@@ -142,10 +142,10 @@ case "$MODE" in
 
         VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
         AUDIO_START=$(ffprobe -v error -select_streams a:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
-        DIFFERENCE=$(echo "$AUDIO_START - $VIDEO_START" | bc)
+        DIFFERENCE=$(echo "$AUDIO_START + $VIDEO_START" | bc)
         
         # TODO entscheiden ob video eine rolle spielt, falls ja dann muss lösung egfunden werden für negative audio verschiebung
-        MILI_SEC=$(awk "BEGIN {printf \"%d\", $AUDIO_START*1000}")
+        MILI_SEC=$(awk "BEGIN {printf \"%d\", $DIFFERENCE*1000}")
 
         echo "INFO:"
         echo "File 1:           $CODE_1   $VALUE_1"
