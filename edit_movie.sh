@@ -93,35 +93,17 @@ case "$MODE" in
         echo "2: 	    $FPS_2"
         echo "Tempo: 	$ATEMPO"
 
-        read -p "Continiue? [Y/n] " input
+        read -p "Continiue? [Y/n] (s for skipping fps adjustment)" input
         if [[ "$input" == "n" || "$input" == "N" ]]; then
             echo "exiting."
             exit 1
         fi
 
-        # echo "extracting audio:"
-        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
-        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -vn -acodec pcm_s16le audio.wav
-        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -vn -ac 2 -ar 48000 -f wav -y audio.wav
-        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -vn -ac 2 -ar 48000 -acodec pcm_s16le audio.wav
-        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -ac 2 -ar 48000 -c:a aac -b:a 192k fixed_audio.m4a
-        # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -ac 2 -ar 48000 -c:a ac3 -b:a 192k audio.ac3
-
-        if [ "$ATEMPO" = "1.000000" ]; then
+        if [ "$ATEMPO" = "1.000000" || "$input" == "s" || "$input" == "S" || "$input" == "skip" ]; then
             echo "extracting audio:"
             ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -ac 2 -ar 48000 -c:a aac -b:a 192k audio.m4a
             echo "rebuild new file:"
             ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -shortest -metadata:s:a:0 language=ger out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio.wav" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ac 2 -metadata:s:a:0 language=ger -shortest out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" -map 1:v -map 0:a -c:v copy -c:a aac -b:a 192k -metadata:s:a:0 language=ger out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i fixed_audio.m4a -map 0:v -map 1:a -c:v copy -c:a copy -metadata:s:a:0 language=ger out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ac 2 -af "aresample=resampler=soxr" -metadata:s:a:0 language=ger out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i audio.ac3 -map 0:v -map 1:a -c:v copy -c:a copy -metadata:s:a:0 language=ger out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "$ARG_1" -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k -ac 2 -metadata:s:a:0 language=ger out.mkv
-            # ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i audio.m4a -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
         else
             echo "extracting audio:"
             ffmpeg -hide_banner -loglevel error -stats -i "$ARG_1" -acodec copy -vn audio.aac
