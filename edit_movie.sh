@@ -181,7 +181,6 @@ case "$MODE" in
             echo "exiting."
             exit 1
         fi
-
         
         if $SKIP_LANG_2; then
             OUTFILE="${ARG_2%.*.*}.$CODE_1.TODO.mkv"
@@ -233,6 +232,9 @@ case "$MODE" in
 
         VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
         echo "  Video start:          $VIDEO_START"
+
+        LENGHT=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 "$ARG_1")
+        echo "  File lenght:          $LENGHT"
 
         echo ""
         echo "Audio:"
