@@ -93,7 +93,7 @@ case "$MODE" in
         echo "2: 	    $FPS_2"
         echo "Tempo: 	$ATEMPO"
 
-        read -p "Continiue? [Y/n] (s for skipping fps adjustment)" input
+        read -p "Continiue? [Y/n] (s for skipping fps adjustment) " input
         if [[ "$input" == "n" || "$input" == "N" ]]; then
             echo "exiting."
             exit 1
