@@ -190,7 +190,7 @@ case "$MODE" in
                 -map 1:v \
                 -map "[aud_de]" \
                 -map 1:a? \
-                -map 1:s:m:codec:subrip? \
+                -map 1:s? \
                 -c:v copy \
                 -c:a:0 aac -b:a:0 192k \
                 -c:s srt \
@@ -207,7 +207,7 @@ case "$MODE" in
                 -map 1:v \
                 -map "[aud_de]" \
                 -map 1:a? \
-                -map 1:s:m:codec:subrip? \
+                -map 1:s? \
                 -c:v copy \
                 -c:a:0 aac -b:a:0 192k \
                 -c:s srt \
