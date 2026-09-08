@@ -13,6 +13,7 @@ usage() {
     echo "Usage:"
     echo "  em -d <seconds>             # Delay out.mp4 by x seconds"
     echo "  em -t <input_1> <input_2>   # adjusts input audio for fps difference"
+    echo "  em -f1 <input_1>            # create final mkv with only one audio stream"
     echo "  em -f <input_1> <input_2>   # create final mkv with multiple audio streams"
     echo "  em -i <input_1>             # print infos to file"
     echo ""
@@ -113,6 +114,68 @@ case "$MODE" in
             ffmpeg -hide_banner -loglevel error -stats -i "$ARG_2" -i "audio_fixed.aac" -map 0:v -map 1:a -c:v copy -c:a copy out.mp4
         fi
 	    ;;
+    -f1)
+        echo "start creating final file:"
+        CODE_1=$(get_code_from_name "$ARG_1")
+        if [[ "$CODE_1" == *'Error'* ]]; then
+            echo "$CODE_1"
+            exit 1
+        fi
+        VALUE_1=$(get_value_from_code "$CODE_1")
+        if [[ "$VALUE_1" == *'Error'* ]]; then
+            echo "$VALUE_1"
+            exit 1
+        fi
+
+        VIDEO_START=$(ffprobe -v error -select_streams v:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        AUDIO_START=$(ffprobe -v error -select_streams a:0 -show_entries stream=start_time -of csv=p=0 "$ARG_1")
+        DIFFERENCE=$(echo "$AUDIO_START + $VIDEO_START" | bc)
+        
+        # TODO entscheiden ob video eine rolle spielt, falls ja dann muss lösung egfunden werden für negative audio verschiebung
+        MILI_SEC=$(awk "BEGIN {printf \"%d\", $DIFFERENCE*1000}")
+
+        LAYOUT=$(ffprobe -v error -select_streams a:0 -show_entries stream=channel_layout -of default=nw=1:nk=1 "$ARG_1")
+        CHANNEL=$(ffprobe -v error -select_streams a:0 -show_entries stream=channels -of csv=p=0 "$ARG_1")
+        if [[ "$LAYOUT" == "unknown" ]]; then
+            case $CHANNEL in
+                1) LAYOUT=mono ;;
+                2) LAYOUT=stereo ;;
+                6) LAYOUT=5.1 ;;
+                8) LAYOUT=7.1 ;;
+                *) LAYOUT=stereo ;; # fallback
+            esac
+        fi
+
+        echo ""
+        echo "Layout File 1:    $CHANNEL -> $LAYOUT"
+        echo "Diff File 2:      $DIFFERENCE -> $MILI_SEC"
+        echo ""
+
+        FILTER_COMPLEX="[0:a:0]aformat=sample_fmts=fltp,aresample=async=1:first_pts=0,adelay=${MILI_SEC}|${MILI_SEC}[aud_de]"
+
+        read -p "Continue? [Y/n] " input
+        if [[ "$input" == "n" || "$input" == "N" ]]; then
+            echo "exiting."
+            exit 1
+        fi
+
+        OUTFILE="${ARG_1%.*.*}.$CODE_1.final.mkv"
+            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" \
+                -movflags +faststart \
+                -filter_complex "$FILTER_COMPLEX" \
+                -map 0:v \
+                -map "[aud_de]" \
+                -map 0:a? \
+                -map 0:s? \
+                -c:v copy \
+                -c:a:0 aac -b:a:0 192k \
+                -c:s copy \
+                -disposition:a:0 default \
+                -metadata:s:a:0 language="$CODE_1" \
+                -metadata:s:a:0 title="$VALUE_1" \
+                "$OUTFILE"
+
+        ;;
     -f)
         echo "start creating final file:"
 
@@ -172,8 +235,6 @@ case "$MODE" in
         echo "Diff File 2:      $DIFFERENCE -> $MILI_SEC"
         echo ""
 
-        # ,asetpts=PTS-STARTPTS
-        # FILTER_COMPLEX="[0:a:0]aformat=sample_fmts=fltp:channel_layouts=$LAYOUT,adelay=${MILI_SEC}[aud_de]"
         FILTER_COMPLEX="[0:a:0]aformat=sample_fmts=fltp,aresample=async=1:first_pts=0,adelay=${MILI_SEC}|${MILI_SEC}[aud_de]"
 
         read -p "Continue? [Y/n] " input
@@ -193,7 +254,7 @@ case "$MODE" in
                 -map 1:s? \
                 -c:v copy \
                 -c:a:0 aac -b:a:0 192k \
-                -c:s srt \
+                -c:s copy \
                 -disposition:a:0 default \
                 -metadata:s:a:0 language="$CODE_1" \
                 -metadata:s:a:0 title="$VALUE_1" \
@@ -210,7 +271,7 @@ case "$MODE" in
                 -map 1:s? \
                 -c:v copy \
                 -c:a:0 aac -b:a:0 192k \
-                -c:s srt \
+                -c:s copy \
                 -disposition:a:0 default \
                 -metadata:s:a:0 language="$CODE_1" \
                 -metadata:s:a:0 title="$VALUE_1" \
