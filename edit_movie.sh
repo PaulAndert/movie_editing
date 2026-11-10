@@ -160,20 +160,33 @@ case "$MODE" in
         fi
 
         OUTFILE="${ARG_1%.*.*}.$CODE_1.final.mkv"
-            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" \
-                -movflags +faststart \
-                -filter_complex "$FILTER_COMPLEX" \
-                -map 0:v \
-                -map "[aud_de]" \
-                -map 0:a? \
-                -map 0:s? \
-                -c:v copy \
-                -c:a:0 aac -b:a:0 192k \
-                -c:s copy \
-                -disposition:a:0 default \
-                -metadata:s:a:0 language="$CODE_1" \
-                -metadata:s:a:0 title="$VALUE_1" \
-                "$OUTFILE"
+        # ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" \
+        #     -movflags +faststart \
+        #     -filter_complex "$FILTER_COMPLEX" \
+        #     -map 0:v \
+        #     -map "[aud_de]" \
+        #     -map 0:a? \
+        #     -map 0:s? \
+        #     -c:v copy \
+        #     -c:a:0 aac -b:a:0 192k \
+        #     -c:s copy \
+        #     -disposition:a:0 default \
+        #     -metadata:s:a:0 language="$CODE_1" \
+        #     -metadata:s:a:0 title="$VALUE_1" \
+        #     "$OUTFILE"
+
+        ffmpeg -y -hide_banner -loglevel error -stats \
+            -i "$ARG_1" \
+            -map 0:v:0 \
+            -map 0:a:0 \
+            -map_metadata 1 \
+            -map_chapters 1 \
+            -c copy \
+            -disposition:a:0 default \
+            -disposition:a:1 0 \
+            -metadata:s:a:0 language="$CODE_1" \
+            -metadata:s:a:0 title="$VALUE_1" \
+            "$OUTFILE"
 
         ;;
     -f)
@@ -245,34 +258,69 @@ case "$MODE" in
         
         if $SKIP_LANG_2; then
             OUTFILE="${ARG_2%.*.*}.$CODE_1.TODO.mkv"
-            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" \
-                -movflags +faststart \
-                -filter_complex "$FILTER_COMPLEX" \
-                -map 1:v \
-                -map "[aud_de]" \
-                -map 1:a? \
-                -map 1:s? \
-                -c:v copy \
-                -c:a:0 aac -b:a:0 192k \
-                -c:s copy \
+            # ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" \
+            #     -movflags +faststart \
+            #     -filter_complex "$FILTER_COMPLEX" \
+            #     -map 1:v \
+            #     -map "[aud_de]" \
+            #     -map 1:a? \
+            #     -map 1:s? \
+            #     -c:v copy \
+            #     -c:a:0 aac -b:a:0 192k \
+            #     -c:s copy \
+            #     -disposition:a:0 default \
+            #     -metadata:s:a:0 language="$CODE_1" \
+            #     -metadata:s:a:0 title="$VALUE_1" \
+            #     "$OUTFILE"
+            ffmpeg -y -hide_banner -loglevel error -stats \
+                -i "$ARG_1" \
+                -i "$ARG_2" \
+                -map 0:v:0 \
+                -map 0:a:0 \
+                -map '1:a?' \
+                -map '1:s?' \
+                -map '1:t?' \
+                -map_metadata 1 \
+                -map_chapters 1 \
+                -c copy \
                 -disposition:a:0 default \
+                -disposition:a:1 0 \
                 -metadata:s:a:0 language="$CODE_1" \
                 -metadata:s:a:0 title="$VALUE_1" \
                 "$OUTFILE"
 
         else
             OUTFILE="${ARG_2%.*.*}.$CODE_1.$CODE_2.mkv"
-            ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" \
-                -movflags +faststart \
-                -filter_complex "$FILTER_COMPLEX" \
-                -map 1:v \
-                -map "[aud_de]" \
-                -map 1:a? \
-                -map 1:s? \
-                -c:v copy \
-                -c:a:0 aac -b:a:0 192k \
-                -c:s copy \
+            # ffmpeg -err_detect ignore_err -hide_banner -loglevel error -stats -i "$ARG_1" -i "$ARG_2" \
+            #     -movflags +faststart \
+            #     -filter_complex "$FILTER_COMPLEX" \
+            #     -map 1:v \
+            #     -map "[aud_de]" \
+            #     -map 1:a? \
+            #     -map 1:s? \
+            #     -c:v copy \
+            #     -c:a:0 aac -b:a:0 192k \
+            #     -c:s copy \
+            #     -disposition:a:0 default \
+            #     -metadata:s:a:0 language="$CODE_1" \
+            #     -metadata:s:a:0 title="$VALUE_1" \
+            #     -metadata:s:a:1 language="$CODE_2" \
+            #     -metadata:s:a:1 title="$VALUE_2" \
+            #     "$OUTFILE"
+
+            ffmpeg -y -hide_banner -loglevel error -stats \
+                -i "$ARG_1" \
+                -i "$ARG_2" \
+                -map 0:v:0 \
+                -map 0:a:0 \
+                -map '1:a?' \
+                -map '1:s?' \
+                -map '1:t?' \
+                -map_metadata 1 \
+                -map_chapters 1 \
+                -c copy \
                 -disposition:a:0 default \
+                -disposition:a:1 0 \
                 -metadata:s:a:0 language="$CODE_1" \
                 -metadata:s:a:0 title="$VALUE_1" \
                 -metadata:s:a:1 language="$CODE_2" \
